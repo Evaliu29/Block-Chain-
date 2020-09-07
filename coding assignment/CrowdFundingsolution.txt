@@ -1,0 +1,118 @@
+pragma solidity ^0.4.17;
+ 
+contract FundingFactory{
+    
+    // Store the addresses of all smart contracts;
+    address[] public fundings;
+    
+    function deploy(string _projectName,uint _supportMoney,uint _goalMoney) public{
+        address funding = new Funding(_projectName,_supportMoney,_goalMoney, msg.sender);
+        fundings.push(funding);
+    }
+}
+
+contract Funding{
+    
+     //address of the fundraiser
+     address public manager;
+     //Project name: MagCharging
+     string public projectName;
+     //money for each support
+     uint public supportMoney;
+     // endTime for this crowdfunding
+     uint public endTime;
+     // goalmoney(after endTime, if the raised money is less, then this crowdfunding fails)
+     uint public goalMoney;
+     // all players
+     address[] public players;
+     mapping(address=>bool)  playersMap;
+     
+     
+     //Store all request
+     Request[] public requets;
+     
+     // A request  
+     struct Request{
+          string description; //  
+          uint money; // 
+          address shopAddress; //    
+          bool complete;  //   
+          mapping(address=>bool) votedmap; // 
+          uint  voteCount; //  
+     }
+     
+     function createRequest(string _description, uint _money, address _shopAddress) public  onlyManagerCanCall{
+         
+         Request memory request = Request({
+             description:_description,
+             money:_money,
+             shopAddress:_shopAddress,
+             complete:false,
+             voteCount : 0
+         });
+         requets.push(request);
+     }
+     
+     //  
+     function approveRequest(uint index) public {
+         Request storage request = requets[index];
+         //1.  
+          require(playersMap[msg.sender]);
+         //2.
+          require(!requets[index].votedmap[msg.sender]);
+          request. voteCount ++;
+          requets[index].votedmap[msg.sender] = true;
+     }
+     
+     // 
+     function finalizeRequest(uint index) public  onlyManagerCanCall {
+          Request storage request = requets[index];
+          //  
+          require(!request.complete);
+          // At least half of all players agree the request 
+          require(request.voteCount * 2 >players.length );
+          // 
+          require(this.balance>=request.money);
+          request.shopAddress.transfer(request.money);
+          request.complete = true;
+     }
+     
+     
+     //  
+     function Funding(string _projectName,uint _supportMoney,uint _goalMoney, address _address) public{
+         manager = _address;
+         projectName = _projectName;
+         supportMoney = _supportMoney;
+         goalMoney = _goalMoney;
+         endTime = now + 4 weeks;
+     }
+     //  A player supports
+     function support() public payable{
+         require(msg.value == supportMoney);
+         players.push(msg.sender);
+         
+         playersMap[msg.sender] = true;
+     }
+     // Total number of players
+     function getPlayersCount() public view returns(uint){
+         return players.length;
+     }
+     //Return the addresses of all players
+     function getPlayers() public view returns(address[]){
+         return players;
+     }
+     //View balance
+     function getTotalBalance() public view returns (uint){
+         return this.balance;
+     }
+     //View time-to-go
+     function getRemainDays() public view returns(uint){
+         return (endTime - now)/24/60/60;
+     }
+     //Manage's right
+     modifier onlyManagerCanCall(){
+         require(msg.sender == manager);
+         _;
+     }
+     
+}
